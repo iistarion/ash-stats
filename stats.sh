@@ -3,15 +3,15 @@ display_stats() {
     echo "=== SYSTEM MONITOR ==="
     echo "CPU: $CPU_MODEL | Cores: $CPU_CORES | Usage: $CPU_USAGE"
     echo "RAM: $RAM_USED_MB MB used of $RAM_TOTAL_MB MB"
-    echo "Disk: $DISK_USAGE"
-    echo "I/O: Read: $DISK_READ_KB | Write: $DISK_WRITE_KB"
+    echo "Disk: Used: $DISK_USED_KB KB of $DISK_TOTAL_KB KB"
+    echo "I/O: Read: $DISK_READ_KB KB/s | Write: $DISK_WRITE_KB KB/s"
     echo "Network: Download: $RX_RATE KB/s | Upload: $TX_RATE KB/s"
 }
 
 display_stats_json() {
     CPU_JSON="\"cpu\": {\"model\": \"$CPU_MODEL\", \"cores\": $CPU_CORES, \"usage\": $CPU_USAGE}"
     RAM_JSON="\"ram\": {\"used\": $RAM_USED_MB, \"total\": $RAM_TOTAL_MB}"
-    DISK_JSON="\"disk\": { \"read\": $DISK_READ_KB, \"write\": $DISK_WRITE_KB}"
+    DISK_JSON="\"disk\": {\"used\": $DISK_USED_KB, \"total\": $DISK_TOTAL_KB, \"read\": $DISK_READ_KB, \"write\": $DISK_WRITE_KB}"
     NETWORK_JSON="\"network\": {\"download\": $RX_RATE, \"upload\": $TX_RATE}"
 
     echo "{ $CPU_JSON, $RAM_JSON, $DISK_JSON, $NETWORK_JSON }"
@@ -55,8 +55,13 @@ while true; do
 
     # Disk Information
     IOSTAT_OUTPUT=$(iostat -dk 1 2 | tail -n +4)
-    DISK_READ_KB=$(echo "$IOSTAT_OUTPUT" | awk '$1 ~ /^sd/ {sum+=$6} END {print sum}')
-    DISK_WRITE_KB=$(echo "$IOSTAT_OUTPUT" | awk '$1 ~ /^sd/ {sum+=$10} END {print sum}')
+    DISK_READ_KB=$(echo "$IOSTAT_OUTPUT" | awk '$1 ~ /^sd/ {sum+=$3} END {print sum}')
+    DISK_WRITE_KB=$(echo "$IOSTAT_OUTPUT" | awk '$1 ~ /^sd/ {sum+=$4} END {print sum}')
+    
+    # Disk Space Usage (Total and Used)
+    DISK_SPACE=$(df -P | awk 'NR>1 && $1 ~ /^\/dev\// {used+=$3; total+=$2} END {print used,total}')
+    DISK_USED_KB=$(echo "$DISK_SPACE" | cut -d ' ' -f 1)
+    DISK_TOTAL_KB=$(echo "$DISK_SPACE" | cut -d ' ' -f 2)
 
     # Network Traffic (RX/TX Rate)
     RX=$(cat /sys/class/net/eth0/statistics/rx_bytes)
