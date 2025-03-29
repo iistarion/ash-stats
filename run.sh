@@ -10,4 +10,4 @@
 #   where the network statistics are located.
 
 
-docker run --rm -v /sys/class/net/eth0/statistics:/mnt/eth0:ro --name ash-stats ash-stats 5 json --network-path /mnt/eth0
+docker run --rm -v /sys/class/net/eth0/statistics:/mnt/eth0:ro --name ash-stats cyaque/ash-stats 5 json --network-path /mnt/eth0
