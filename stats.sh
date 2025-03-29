@@ -4,15 +4,15 @@ display_stats() {
     echo "CPU: $CPU_MODEL | Cores: $CPU_CORES | Usage: $CPU_USAGE"
     echo "RAM: $RAM_USED_MB MB used of $RAM_TOTAL_MB MB"
     echo "Disk: $DISK_USAGE"
-    echo "I/O: Read: $DISK_READ | Write: $DISK_WRITE"
+    echo "I/O: Read: $DISK_READ_KB | Write: $DISK_WRITE_KB"
     echo "Network: Download: $RX_RATE KB/s | Upload: $TX_RATE KB/s"
 }
 
 display_stats_json() {
-    CPU_JSON="\"cpu\": {\"model\": \"$CPU_MODEL\", \"cores\": $CPU_CORES, \"usage\": \"$CPU_USAGE\"}"
-    RAM_JSON="\"ram\": {\"used_mb\": $RAM_USED_MB, \"total_mb\": $RAM_TOTAL_MB}"
-    DISK_JSON="\"disk\": {\"usage\": \"$DISK_USAGE\", \"read\": \"$DISK_READ\", \"write\": \"$DISK_WRITE\"}"
-    NETWORK_JSON="\"network\": {\"download_kb_s\": $RX_RATE, \"upload_kb_s\": $TX_RATE}"
+    CPU_JSON="\"cpu\": {\"model\": \"$CPU_MODEL\", \"cores\": $CPU_CORES, \"usage\": $CPU_USAGE}"
+    RAM_JSON="\"ram\": {\"used\": $RAM_USED_MB, \"total\": $RAM_TOTAL_MB}"
+    DISK_JSON="\"disk\": { \"read\": $DISK_READ_KB, \"write\": $DISK_WRITE_KB}"
+    NETWORK_JSON="\"network\": {\"download\": $RX_RATE, \"upload\": $TX_RATE}"
 
     echo "{ $CPU_JSON, $RAM_JSON, $DISK_JSON, $NETWORK_JSON }"
 }
@@ -44,7 +44,7 @@ while true; do
     # CPU Information
     CPU_MODEL=$(awk -F': ' '/model name/ {print $2; exit}' /proc/cpuinfo)
     CPU_CORES=$(nproc)
-    CPU_USAGE=$(awk -v OFMT="%.2f" 'NR==1 {total=$2+$4+$5; if (total > 0) {usage=($2+$4)*100/total; print usage "%"} else {print "0.00%"}}' < /proc/stat)
+    CPU_USAGE=$(awk -v OFMT="%.2f" 'NR==1 {total=$2+$4+$5; if (total > 0) {usage=($2+$4)*100/total; print usage} else {print 0.00}}' < /proc/stat)
 
     # RAM Information
     RAM_TOTAL=$(awk '/MemTotal/ {print $2}' /proc/meminfo)
@@ -54,9 +54,9 @@ while true; do
     RAM_USED_MB=$(echo "scale=1; $RAM_USED / 1024" | bc)
 
     # Disk Information
-    DISK_USAGE=$(df -h / | awk 'NR==2 {print $5}')
-    DISK_READ=$(iostat -dk 1 2 | awk 'NR==4 {print $6}')
-    DISK_WRITE=$(iostat -dk 1 2 | awk 'NR==4 {print $10}')
+    IOSTAT_OUTPUT=$(iostat -dk 1 2 | tail -n +4)
+    DISK_READ_KB=$(echo "$IOSTAT_OUTPUT" | awk '$1 ~ /^sd/ {sum+=$6} END {print sum}')
+    DISK_WRITE_KB=$(echo "$IOSTAT_OUTPUT" | awk '$1 ~ /^sd/ {sum+=$10} END {print sum}')
 
     # Network Traffic (RX/TX Rate)
     RX=$(cat /sys/class/net/eth0/statistics/rx_bytes)
