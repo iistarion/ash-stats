@@ -1,14 +1,12 @@
 # Ash Stats
 
-This repository contains a script `stats.sh` designed to provide various system statistics.
+This repository contains the `stats.sh` script, designed to provide essential system statistics.
 
 ## Features
 
 - Displays system uptime.
-- Shows memory usage.
-- Lists disk usage.
-- Outputs CPU load.
-- Provides network statistics.
+- Shows memory and disk usage.
+- Outputs CPU load and network statistics.
 
 ## Usage
 
@@ -30,22 +28,23 @@ This repository contains a script `stats.sh` designed to provide various system 
 
 ## Docker Usage
 
-You can also run the script using Docker:
+A prebuilt Docker image is available on Docker Hub: [cyaque/ash-stats](https://hub.docker.com/r/cyaque/ash-stats).
 
-1. Build the Docker image:
+1. Run the container:
     ```bash
-    docker build -t ash-stats .
+    docker run --rm  cyaque/ash-stats
     ```
 
-2. Run the container:
+2. Alternatively, use the `run.sh` script for advanced options like host network monitoring, JSON output, and periodic updates:
     ```bash
-    docker run --rm ash-stats
+    ./run.sh
     ```
 
 ## Requirements
 
 - Bash shell
-- Basic Linux/Unix utilities (e.g., `uptime`, `df`, `free`, `top`, etc.)
+- Standard Linux/Unix utilities (e.g., `df`, `nproc`, `iostat`)
+- Docker (optional, for containerized usage)
 
 ## License
 
@@ -53,7 +52,7 @@ This project is licensed under the [GNU General Public License v3.0](LICENSE).
 
 ## Contributing
 
-Feel free to fork this repository and submit pull requests to enhance its functionality or add new features. By contributing, you agree that your contributions will be licensed under the same [GNU General Public License v3.0](LICENSE) as this project. Please note that simplicity is a key priority for this project though!
+Feel free to fork this repository and submit pull requests to enhance its functionality or add new features. By contributing, you agree that your contributions will be licensed under the same [GNU General Public License v3.0](LICENSE) as this project. Please note that simplicity is a key priority for this project.
 
 ## Author
 

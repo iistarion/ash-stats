@@ -1,4 +1,4 @@
-#!/bin/ash
+#!/bin/sh
 display_stats() {
     echo "=== SYSTEM MONITOR ==="
     echo "CPU: $CPU_MODEL | Cores: $CPU_CORES | Usage: $CPU_USAGE"
@@ -17,30 +17,47 @@ display_stats_json() {
     echo "{ $CPU_JSON, $RAM_JSON, $DISK_JSON, $NETWORK_JSON }"
 }
 
-# Default sleep time in seconds
-DEFAULT_SLEEP_SEC=1
-
-# Default output type
+DEFAULT_SLEEP_SEC=2
 DEFAULT_OUTPUT_TYPE="pretty"
+NETWORK_PATH="/sys/class/net/eth0/statistics"
 
-# Parse command line arguments
 SLEEP_SEC=$DEFAULT_SLEEP_SEC
 OUTPUT_TYPE=$DEFAULT_OUTPUT_TYPE
 
-for arg in "$@"; do
-    if [ "$arg" -ge 1 ] 2>/dev/null; then
-        SLEEP_SEC="$arg"
-    elif [ "$arg" = "json" ] || [ "$arg" = "pretty" ]; then
-        OUTPUT_TYPE="$arg"
-    else
-        echo "Invalid argument: $arg"
-        echo "Usage: $0 [SLEEP_SEC] [OUTPUT_TYPE (json|pretty*)]"
-        echo "*: OUTPUT_TYPE defaults to 'pretty' if not specified."
-        exit 1
-    fi
+# Parse arguments
+while [ "$#" -gt 0 ]; do
+    case "$1" in
+        [2-9]*|[1-9][0-9]*)  # If argument is a number >=2
+            SLEEP_SEC=$(( $1 - 1 ))
+            ;;
+        json|pretty)
+            OUTPUT_TYPE="$1"
+            ;;
+        --network-path)
+            shift
+            if [ -z "$1" ]; then
+                echo "Error: Missing value for --network-path"
+                exit 1
+            fi
+            NETWORK_PATH="$1"
+            ;;
+        *)
+            echo "Invalid argument: $1"
+            echo "Usage: $0 [SLEEP_SEC (minimum 2s)] [OUTPUT_TYPE (json|pretty*)] [--network-path <path>]"
+            echo "* OUTPUT_TYPE defaults to 'pretty' if not specified."
+            echo "Note: SLEEP_SEC must be at least 2 seconds to allow network statistics calculation."
+            exit 1
+            ;;
+    esac
+    shift
 done
 
+NETWORK_PATH_RX="$NETWORK_PATH/rx_bytes"
+NETWORK_PATH_TX="$NETWORK_PATH/tx_bytes"
+
 while true; do
+    sleep "$SLEEP_SEC"
+
     # CPU Information
     CPU_MODEL=$(awk -F': ' '/model name/ {print $2; exit}' /proc/cpuinfo)
     CPU_CORES=$(nproc)
@@ -64,21 +81,18 @@ while true; do
     DISK_TOTAL_KB=$(echo "$DISK_SPACE" | cut -d ' ' -f 2)
 
     # Network Traffic (RX/TX Rate)
-    RX=$(cat /sys/class/net/eth0/statistics/rx_bytes)
-    TX=$(cat /sys/class/net/eth0/statistics/tx_bytes)
+    RX=$(cat $NETWORK_PATH_RX)
+    TX=$(cat $NETWORK_PATH_TX)
     sleep 1
-    RX2=$(cat /sys/class/net/eth0/statistics/rx_bytes)
-    TX2=$(cat /sys/class/net/eth0/statistics/tx_bytes)
+    RX2=$(cat $NETWORK_PATH_RX)
+    TX2=$(cat $NETWORK_PATH_TX)
     RX_RATE=$(( (RX2 - RX) / 1024 ))
     TX_RATE=$(( (TX2 - TX) / 1024 ))
-
 
     if [ "$OUTPUT_TYPE" = "json" ]; then
         display_stats_json
     else
         display_stats
     fi
-
-    sleep "$SLEEP_SEC"
 done
 
