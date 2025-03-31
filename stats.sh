@@ -24,8 +24,6 @@ display_stats() {
 
         echo "Disk $device ($path): Used $used of $size (Available: $avail)"
     done
-    echo "Disk: Used: $DISK_USED_KB KB of $DISK_TOTAL_KB KB"
-    echo "I/O: Read: $DISK_READ_KB KB/s | Write: $DISK_WRITE_KB KB/s"
     echo "Network: Download: $RX_RATE KB/s | Upload: $TX_RATE KB/s"
 }
 
