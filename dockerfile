@@ -5,6 +5,7 @@ RUN apk update
 WORKDIR /app
 
 COPY stats.sh stats.sh
+COPY version.txt version.txt
 
 RUN chmod +x stats.sh
 
