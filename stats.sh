@@ -55,19 +55,24 @@ done
 NETWORK_PATH_RX="$NETWORK_PATH/rx_bytes"
 NETWORK_PATH_TX="$NETWORK_PATH/tx_bytes"
 
+CPU_MODEL=$(awk -F': ' '/model name/ {print $2; exit}' /proc/cpuinfo)
+CPU_CORES=$(nproc)
+
+RAM_TOTAL=$(awk '/MemTotal/ {print $2}' /proc/meminfo)
+RAM_TOTAL_MB=$(echo "scale=1; $RAM_TOTAL / 1024" | bc)
+
+DISK_SPACE=$(df -P | awk 'NR>1 && $1 ~ /^\/dev\// && $1 !~ /overlay/ {used+=$3; total+=$2} END {print used,total}')
+DISK_TOTAL_KB=$(echo "$DISK_SPACE" | cut -d ' ' -f 2)
+
 while true; do
     sleep "$SLEEP_SEC"
 
     # CPU Information
-    CPU_MODEL=$(awk -F': ' '/model name/ {print $2; exit}' /proc/cpuinfo)
-    CPU_CORES=$(nproc)
     CPU_USAGE=$(awk -v OFMT="%.2f" 'NR==1 {total=$2+$4+$5; if (total > 0) {usage=($2+$4)*100/total; print usage} else {print 0.00}}' < /proc/stat)
 
     # RAM Information
-    RAM_TOTAL=$(awk '/MemTotal/ {print $2}' /proc/meminfo)
     RAM_AVAILABLE=$(awk '/MemAvailable/ {print $2}' /proc/meminfo)
     RAM_USED=$((RAM_TOTAL - RAM_AVAILABLE))
-    RAM_TOTAL_MB=$(echo "scale=1; $RAM_TOTAL / 1024" | bc)
     RAM_USED_MB=$(echo "scale=1; $RAM_USED / 1024" | bc)
 
     # Disk Information
@@ -76,9 +81,7 @@ while true; do
     DISK_WRITE_KB=$(echo "$IOSTAT_OUTPUT" | awk '$1 ~ /^sd/ {sum+=$4} END {print sum}')
     
     # Disk Space Usage (Total and Used)
-    DISK_SPACE=$(df -P | awk 'NR>1 && $1 ~ /^\/dev\// && $1 !~ /overlay/ {used+=$3; total+=$2} END {print used,total}')
-DISK_USED_KB=$(echo "$DISK_SPACE" | cut -d ' ' -f 1)
-    DISK_TOTAL_KB=$(echo "$DISK_SPACE" | cut -d ' ' -f 2)
+    DISK_USED_KB=$(echo "$DISK_SPACE" | cut -d ' ' -f 1)
 
     # Network Traffic (RX/TX Rate)
     RX=$(cat $NETWORK_PATH_RX)
