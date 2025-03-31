@@ -76,8 +76,8 @@ while true; do
     DISK_WRITE_KB=$(echo "$IOSTAT_OUTPUT" | awk '$1 ~ /^sd/ {sum+=$4} END {print sum}')
     
     # Disk Space Usage (Total and Used)
-    DISK_SPACE=$(df -P | awk 'NR>1 && $1 ~ /^\/dev\// {used+=$3; total+=$2} END {print used,total}')
-    DISK_USED_KB=$(echo "$DISK_SPACE" | cut -d ' ' -f 1)
+    DISK_SPACE=$(df -P | awk 'NR>1 && $1 ~ /^\/dev\// && $1 !~ /overlay/ {used+=$3; total+=$2} END {print used,total}')
+DISK_USED_KB=$(echo "$DISK_SPACE" | cut -d ' ' -f 1)
     DISK_TOTAL_KB=$(echo "$DISK_SPACE" | cut -d ' ' -f 2)
 
     # Network Traffic (RX/TX Rate)
