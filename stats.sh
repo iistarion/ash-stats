@@ -30,8 +30,8 @@ display_stats() {
 display_stats_json() {
     CPU_JSON="\"cpu\": {\"model\": \"$CPU_MODEL\", \"cores\": $CPU_CORES, \"usage\": $CPU_USAGE}"
     RAM_JSON="\"ram\": {\"used\": $RAM_USED_MB, \"total\": $RAM_TOTAL_MB}"
-    DISK_JSON="\"disks\":["
-    first=true
+    index=0
+    DISK_JSON="\"disk\": {"
     for line in $(echo -e "$MOUNT_DATA"); do
         path=$(echo "$line" | awk -F'|' '{print $1}')
         device=$(echo "$line" | awk -F'|' '{print $2}')
@@ -39,15 +39,13 @@ display_stats_json() {
         used=$(echo "$line" | awk -F'|' '{print $4}')
         avail=$(echo "$line" | awk -F'|' '{print $5}')
 
-        if [ "$first" = true ]; then
-            first=false
-        else
+        if [ $index -gt 0 ]; then
             DISK_JSON="${DISK_JSON},"
         fi
 
-        DISK_JSON="${DISK_JSON}{\"used\": $used, \"total\": $size, \"device\": \"$device\", \"path\": \"$path\"}"
+        DISK_JSON="${DISK_JSON}\"disk_${index}_used\": $used, \"disk_${index}_total\": $size, \"disk_${index}_device\": \"$device\", \"disk_${index}_path\": \"$path\"}"
+        index=$((index + 1))
     done
-    DISK_JSON="${DISK_JSON}]"
     
     NETWORK_JSON="\"network\": {\"download\": $RX_RATE, \"upload\": $TX_RATE}"
 
@@ -109,10 +107,11 @@ MOUNT_DATA=""
 collect_mount_data() {
     local mount_data=""
     for path in $MOUNT_POINTS; do
-        device=$(df -T "$path" 2>/dev/null | awk 'NR==2 {print $1}')
-        size=$(df -T "$path" 2>/dev/null | awk 'NR==2 {print $3}')
-        used=$(df -T "$path" 2>/dev/null | awk 'NR==2 {print $4}')
-        avail=$(df -T "$path" 2>/dev/null | awk 'NR==2 {print $5}')
+        df_output=$(df -T "$path" 2>/dev/null | awk 'NR==2')
+        device=$(echo "$df_output" | awk '{print $1}')
+        size=$(echo "$df_output" | awk '{print $3}')
+        used=$(echo "$df_output" | awk '{print $4}')
+        avail=$(echo "$df_output" | awk '{print $5}')
         
         mount_data="${mount_data}${path}|${device}|${size}|${used}|${avail}\n"
     done
