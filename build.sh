@@ -5,7 +5,7 @@ echo "$ASH_STATS_VERSION" > version.txt
 
 docker build -t cyaque/ash-stats:$ASH_STATS_VERSION .
 
-if [ "$1" = 'push' ]; then
+if [ "$1" = 'push' ] || [ "$2" = 'push' ]; then
     docker tag cyaque/ash-stats:$ASH_STATS_VERSION cyaque/ash-stats:latest
     docker push cyaque/ash-stats:$ASH_STATS_VERSION
     docker push cyaque/ash-stats:latest
