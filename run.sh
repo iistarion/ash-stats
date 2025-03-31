@@ -9,5 +9,9 @@
 # - "--network-path /mnt/eth0": Points to the mounted directory inside the container 
 #   where the network statistics are located.
 
-
-docker run --rm -v /sys/class/net/eth0/statistics:/mnt/eth0:ro --name ash-stats cyaque/ash-stats 5 json --network-path /mnt/eth0
+docker run --rm --name ash-stats \
+    -v /sys/class/net/eth0/statistics:/host/eth0:ro \
+    -v /proc:"/host/proc:ro,rslave" \
+    -v /sys:"/host/sys:ro,rslave" \
+    -v /dev:"/host/dev:ro" \
+    cyaque/ash-stats 5 json --network-path /host/eth0
