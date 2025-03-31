@@ -1,9 +1,12 @@
 #!/bin/sh
+VERSION_DATE=$(date +"%m%d")
+ASH_STATS_VERSION=1.$VERSION_DATE.$1
+echo "$ASH_STATS_VERSION" > version.txt
 
-TAG=$(date +"%m.%d")
+docker build -t cyaque/ash-stats:$ASH_STATS_VERSION .
 
-docker build -t cyaque/ash-stats:1.$TAG$1 .
-docker tag cyaque/ash-stats:1.$TAG$1 cyaque/ash-stats:latest
-
-docker push cyaque/ash-stats:1.$TAG$1
-docker push cyaque/ash-stats:latest
+if [ "$1" = 'push' ]; then
+    docker tag cyaque/ash-stats:$ASH_STATS_VERSION cyaque/ash-stats:latest
+    docker push cyaque/ash-stats:$ASH_STATS_VERSION
+    docker push cyaque/ash-stats:latest
+fi
