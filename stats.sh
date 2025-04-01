@@ -1,7 +1,6 @@
 #!/bin/sh
-
 # Check if /host is mounted
-if [ ! -d "/host/proc" ] || [ ! -d "/host/sys" ]; then
+if [ ! -d "/host" ] ; then
     echo "/host mount is missing or inaccessible, reading container stats."
     HOST=""
 else
@@ -34,7 +33,7 @@ display_stats_json() {
     DISK_JSON="\"disk\": {"
     for line in $(echo -e "$MOUNT_DATA"); do
         path=$(echo "$line" | awk -F'|' '{print $1}')
-        device=$(echo "$line" | awk -F'|' '{print $2}')
+        device=$(echo "$line" | awk -F'|' '{print $2}' | sed 's|\\|/|g')
         size=$(echo "$line" | awk -F'|' '{print $3}')
         used=$(echo "$line" | awk -F'|' '{print $4}')
         avail=$(echo "$line" | awk -F'|' '{print $5}')
@@ -43,9 +42,10 @@ display_stats_json() {
             DISK_JSON="${DISK_JSON},"
         fi
 
-        DISK_JSON="${DISK_JSON}\"disk_${index}_used\": $used, \"disk_${index}_total\": $size, \"disk_${index}_device\": \"$device\", \"disk_${index}_path\": \"$path\"}"
+        DISK_JSON="${DISK_JSON}\"disk_${index}_used\": $used, \"disk_${index}_total\": $size, \"disk_${index}_device\": \"$device\", \"disk_${index}_path\": \"$path\""
         index=$((index + 1))
     done
+    DISK_JSON="${DISK_JSON}}"
     
     NETWORK_JSON="\"network\": {\"download\": $RX_RATE, \"upload\": $TX_RATE}"
 
@@ -97,10 +97,10 @@ RAM_TOTAL=$(awk '/MemTotal/ {print $2}' $HOST/proc/meminfo)
 RAM_TOTAL_MB=$(echo "scale=1; $RAM_TOTAL / 1024" | bc)
 
 #!/bin/sh
-if [ -z "$(ls -A /mnt/ 2>/dev/null)" ]; then
+if [ -z "$(ls -A /host/mnt/ 2>/dev/null)" ]; then
     MOUNT_POINTS="/"
 else
-    MOUNT_POINTS=$(echo /mnt/*/)
+    MOUNT_POINTS=$(echo /host/mnt/*/)
 fi
 MOUNT_DATA=""
 

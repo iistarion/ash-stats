@@ -50,10 +50,6 @@ A prebuilt Docker image is available on Docker Hub: [cyaque/ash-stats](https://h
 
 This project is licensed under the [GNU General Public License v3.0](LICENSE).
 
-## Contributing
-
-Feel free to fork this repository and submit pull requests to enhance its functionality or add new features. By contributing, you agree that your contributions will be licensed under the same [GNU General Public License v3.0](LICENSE) as this project. Please note that simplicity is a key priority for this project.
-
 ## Author
 
 Ash Stats is maintained by Carlos Yaque.
