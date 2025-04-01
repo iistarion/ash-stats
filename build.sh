@@ -1,7 +1,15 @@
 #!/bin/sh
 VERSION_DATE=$(date +"%m%d")
-ASH_STATS_VERSION=1.$VERSION_DATE.$1
+if [ "$1" = 'push' ] || [ -z "$1" ] ; then
+    ARG0=01
+else
+    ARG0="$1"
+fi
+
+ASH_STATS_VERSION=1.$VERSION_DATE.$ARG0
 echo "$ASH_STATS_VERSION" > version.txt
+
+echo "Building version: '$ASH_STATS_VERSION'"
 
 docker build -t cyaque/ash-stats:$ASH_STATS_VERSION .
 
