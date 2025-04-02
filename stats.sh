@@ -15,7 +15,7 @@ MOUNT_DATA=""
 
 
 
-DEFAULT_SLEEP_SEC=2
+DEFAULT_SLEEP_SEC=1
 DEFAULT_OUTPUT_TYPE="pretty"
 NETWORK_PATH="/sys/class/net/eth0/statistics"
 
@@ -50,6 +50,7 @@ while [ "$#" -gt 0 ]; do
     shift
 done
 
+SLEEP_SEC_REAL=$(($SLEEP_SEC + 1))
 CPU_MODEL=$(awk -F': ' '/model name/ {print $2; exit}' $HOST/proc/cpuinfo)
 CPU_CORES=$(nproc)
 CPU_FREQUENCY=$(grep "cpu MHz" /proc/cpuinfo | head -1)
@@ -59,7 +60,7 @@ UNAME=$(uname -a)
 
 ASH_STATS_VERSION=$(cat version.txt)
 if [ "$OUTPUT_TYPE" = "json" ]; then
-    echo "{ \"ash_stats_version\": \"$ASH_STATS_VERSION\", \"host_mount\": \"$HOST\", \"cpu_model\": \"$CPU_MODEL\", \"cpu_cores\": \"$CPU_CORES\", \"cpu_frequency\": \"$CPU_FREQUENCY\", \"system\": \"$UNAME\", \"update_sec\": $SLEEP_SEC, \"output\": \"$OUTPUT_TYPE\", \"uptime\": \"$UPTIME\" }"
+    echo "{ \"ash_stats_version\": \"$ASH_STATS_VERSION\", \"host_mount\": \"$HOST\", \"cpu_model\": \"$CPU_MODEL\", \"cpu_cores\": \"$CPU_CORES\", \"cpu_frequency\": \"$CPU_FREQUENCY\", \"system\": \"$UNAME\", \"update_sec\": $SLEEP_SEC_REAL, \"output\": \"$OUTPUT_TYPE\", \"uptime\": \"$UPTIME\" }"
 else
     echo "VERSION: $ASH_STATS_VERSION"
     echo "CPU Model: $CPU_MODEL"
@@ -67,7 +68,7 @@ else
     echo "CPU Frequency: $CPU_FREQUENCY"
     echo "Online since: $UPTIME"
     echo "System: $UNAME"
-    echo "Update every: $SLEEP_SEC seconds"
+    echo "Update every: $SLEEP_SEC_REAL seconds"
     echo "Output type: $OUTPUT_TYPE"
 fi
 
