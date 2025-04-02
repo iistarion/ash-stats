@@ -136,7 +136,21 @@ while true; do
     collect_network_data
 
     # CPU Information
-    CPU_USAGE=$(awk -v OFMT="%.2f" 'NR==1 {total=$2+$4+$5; if (total > 0) {usage=($2+$4)*100/total; print usage} else {print 0.00}}' < $HOST/proc/stat)
+    PREV_TOTAL=0
+    PREV_IDLE=0
+
+    read cpu user nice system idle iowait irq softirq steal guest guest_nice < /proc/stat
+    TOTAL=$((user + nice + system + idle + iowait + irq + softirq + steal))
+    DIFF_IDLE=$((idle - PREV_IDLE))
+    DIFF_TOTAL=$((TOTAL - PREV_TOTAL))
+    CPU_USAGE=$(awk '{u=$2+$4; t=$2+$4+$5; if (NR==1){u1=u; t1=t;} else print ($2+$4-u1) * 100 / (t-t1) ; }' \
+        < (grep 'cpu ' /proc/stat) <(sleep 1;grep 'cpu ' /proc/stat))
+
+    echo "CPU Usage: $CPU_USAGE%"
+
+    # Update previous values for next iteration
+    PREV_TOTAL=$TOTAL
+    PREV_IDLE=$idle
 
     # RAM Information
     RAM_AVAILABLE=$(awk '/MemAvailable/ {print $2}' $HOST/proc/meminfo)
