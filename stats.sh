@@ -1,56 +1,19 @@
 #!/bin/sh
 # Check if /host is mounted
 if [ ! -d "/host" ] ; then
-    echo "/host mount is missing or inaccessible, reading container stats."
     HOST=""
 else
     HOST="/host"
 fi
-ASH_STATS_VERSION=$(cat version.txt)
-ASH_STATS_VERSION_JSON="{ \"ash_stats_version\": \"$ASH_STATS_VERSION\" }"
-echo "$ASH_STATS_VERSION_JSON"
 
-display_stats() {
-    echo "=== SYSTEM MONITOR ==="
-    echo "CPU: $CPU_MODEL | Cores: $CPU_CORES | Usage: $CPU_USAGE"
-    echo "RAM: $RAM_USED_MB MB used of $RAM_TOTAL_MB MB"
-    for line in $(echo -e "$MOUNT_DATA"); do
-        path=$(echo "$line" | awk -F'|' '{print $1}')
-        device=$(echo "$line" | awk -F'|' '{print $2}')
-        size=$(echo "$line" | awk -F'|' '{print $3}')
-        used=$(echo "$line" | awk -F'|' '{print $4}')
-        avail=$(echo "$line" | awk -F'|' '{print $5}')
+if [ -z "$(ls -A /host/mnt/ 2>/dev/null)" ]; then
+    MOUNT_POINTS="/"
+else
+    MOUNT_POINTS=$(echo /host/mnt/*/)
+fi
+MOUNT_DATA=""
 
-        echo "Disk $device ($path): Used $used of $size (Available: $avail)"
-    done
-    echo "Network: Download: $RX_RATE KB/s | Upload: $TX_RATE KB/s"
-}
 
-display_stats_json() {
-    CPU_JSON="\"cpu\": {\"model\": \"$CPU_MODEL\", \"cores\": $CPU_CORES, \"usage\": $CPU_USAGE}"
-    RAM_JSON="\"ram\": {\"used\": $RAM_USED_MB, \"total\": $RAM_TOTAL_MB}"
-    index=0
-    DISK_JSON="\"disk\": {"
-    for line in $(echo -e "$MOUNT_DATA"); do
-        path=$(echo "$line" | awk -F'|' '{print $1}')
-        device=$(echo "$line" | awk -F'|' '{print $2}' | sed 's|\\|/|g')
-        size=$(echo "$line" | awk -F'|' '{print $3}')
-        used=$(echo "$line" | awk -F'|' '{print $4}')
-        avail=$(echo "$line" | awk -F'|' '{print $5}')
-
-        if [ $index -gt 0 ]; then
-            DISK_JSON="${DISK_JSON},"
-        fi
-
-        DISK_JSON="${DISK_JSON}\"disk_${index}_used\": $used, \"disk_${index}_total\": $size, \"disk_${index}_device\": \"$device\", \"disk_${index}_path\": \"$path\""
-        index=$((index + 1))
-    done
-    DISK_JSON="${DISK_JSON}}"
-    
-    NETWORK_JSON="\"network\": {\"download\": $RX_RATE, \"upload\": $TX_RATE}"
-
-    echo "{ $CPU_JSON, $RAM_JSON, $DISK_JSON, $NETWORK_JSON }"
-}
 
 DEFAULT_SLEEP_SEC=2
 DEFAULT_OUTPUT_TYPE="pretty"
@@ -87,22 +50,77 @@ while [ "$#" -gt 0 ]; do
     shift
 done
 
+CPU_MODEL=$(awk -F': ' '/model name/ {print $2; exit}' $HOST/proc/cpuinfo)
+CPU_CORES=$(nproc)
+CPU_FREQUENCY=$(grep "cpu MHz" /proc/cpuinfo | head -1)
+CPU_FREQUENCY=$(echo $CPU_FREQUENCY | awk -F': ' '{print $2}')
+UPTIME=$(uptime -s)
+UNAME=$(uname -a)
+
+ASH_STATS_VERSION=$(cat version.txt)
+if [ "$OUTPUT_TYPE" = "json" ]; then
+    echo "{ \"ash_stats_version\": \"$ASH_STATS_VERSION\", \"host_mount\": \"$HOST\", \"cpu_model\": \"$CPU_MODEL\", \"cpu_cores\": \"$CPU_CORES\", \"cpu_frequency\": \"$CPU_FREQUENCY\", \"system\": \"$UNAME\", \"update_sec\": $SLEEP_SEC, \"output\": \"$OUTPUT_TYPE\", \"uptime\": \"$UPTIME\" }"
+else
+    echo "VERSION: $ASH_STATS_VERSION"
+    echo "CPU Model: $CPU_MODEL"
+    echo "CPU Cores: $CPU_CORES"
+    echo "CPU Frequency: $CPU_FREQUENCY"
+    echo "Online since: $UPTIME"
+    echo "System: $UNAME"
+    echo "Update every: $SLEEP_SEC seconds"
+    echo "Output type: $OUTPUT_TYPE"
+fi
+
+display_stats() {
+    echo "=== SYSTEM MONITOR ==="
+    echo "CPU Usage: $CPU_USAGE"
+    echo "RAM: $RAM_USED_MB MB used of $RAM_TOTAL_MB MB"
+    
+    for line in $(printf "$MOUNT_DATA"); do
+        path=$(echo "$line" | awk -F'|' '{print $1}')
+        device=$(echo "$line" | awk -F'|' '{print $2}')
+        size=$(echo "$line" | awk -F'|' '{print $3}')
+        used=$(echo "$line" | awk -F'|' '{print $4}')
+        avail=$(echo "$line" | awk -F'|' '{print $5}')
+
+        echo "Disk $device ($path): Used $used of $size (Available: $avail)"
+    done
+
+    echo "Network: Download: $RX_RATE KB/s | Upload: $TX_RATE KB/s"
+}
+
+display_stats_json() {
+    CPU_JSON="\"cpu\": {\"usage\": $CPU_USAGE}"
+    RAM_JSON="\"ram\": {\"used\": $RAM_USED_MB, \"total\": $RAM_TOTAL_MB}"
+    index=0
+    DISK_JSON="\"disk\": {"
+    
+    for line in $(printf "$MOUNT_DATA"); do
+        path=$(echo "$line" | awk -F'|' '{print $1}')
+        device=$(echo "$line" | awk -F'|' '{print $2}' | sed 's|\\|/|g')
+        size=$(echo "$line" | awk -F'|' '{print $3}')
+        used=$(echo "$line" | awk -F'|' '{print $4}')
+        avail=$(echo "$line" | awk -F'|' '{print $5}')
+
+        if [ $index -gt 0 ]; then
+            DISK_JSON="${DISK_JSON},"
+        fi
+
+        DISK_JSON="${DISK_JSON}\"disk_${index}_used\": $used, \"disk_${index}_total\": $size, \"disk_${index}_device\": \"$device\", \"disk_${index}_path\": \"$path\""
+        index=$((index + 1))
+    done
+    DISK_JSON="${DISK_JSON}}"
+    
+    NETWORK_JSON="\"network\": {\"download\": $RX_RATE, \"upload\": $TX_RATE}"
+
+    echo "{ $CPU_JSON, $RAM_JSON, $DISK_JSON, $NETWORK_JSON }"
+}
+
 NETWORK_PATH_RX="$NETWORK_PATH/rx_bytes"
 NETWORK_PATH_TX="$NETWORK_PATH/tx_bytes"
 
-CPU_MODEL=$(awk -F': ' '/model name/ {print $2; exit}' $HOST/proc/cpuinfo)
-CPU_CORES=$(nproc)
-
 RAM_TOTAL=$(awk '/MemTotal/ {print $2}' $HOST/proc/meminfo)
 RAM_TOTAL_MB=$(echo "scale=1; $RAM_TOTAL / 1024" | bc)
-
-#!/bin/sh
-if [ -z "$(ls -A /host/mnt/ 2>/dev/null)" ]; then
-    MOUNT_POINTS="/"
-else
-    MOUNT_POINTS=$(echo /host/mnt/*/)
-fi
-MOUNT_DATA=""
 
 collect_mount_data() {
     local mount_data=""
@@ -115,7 +133,7 @@ collect_mount_data() {
         
         mount_data="${mount_data}${path}|${device}|${size}|${used}|${avail}\n"
     done
-    echo -e "$mount_data"
+    echo "$mount_data"
 }
 MOUNT_DATA=$(collect_mount_data)
 
@@ -132,25 +150,25 @@ collect_network_data() {
 while true; do
     sleep "$SLEEP_SEC"
 
+    #Cpu Reading 1
+    read cpu user1 nice1 system1 idle1 iowait1 irq1 softirq1 steal1 guest1 guest_nice1 < /proc/stat
+    TOTAL1=$(( user1 + nice1 + system1 + idle1 + iowait1 + irq1 + softirq1 + steal1 ))
+
     # Network Traffic (RX/TX Rate)
     collect_network_data
 
-    # CPU Information
-    PREV_TOTAL=0
-    PREV_IDLE=0
+    # Cpu Reading 2
+    read cpu user2 nice2 system2 idle2 iowait2 irq2 softirq2 steal2 guest2 guest_nice2 < /proc/stat
+    TOTAL2=$(( user2 + nice2 + system2 + idle2 + iowait2 + irq2 + softirq2 + steal2 ))
+    DIFF_TOTAL=$(( TOTAL2 - TOTAL1 ))
+    DIFF_IDLE=$(( idle2 - idle1 ))
 
-    read cpu user nice system idle iowait irq softirq steal guest guest_nice < /proc/stat
-    TOTAL=$((user + nice + system + idle + iowait + irq + softirq + steal))
-    DIFF_IDLE=$((idle - PREV_IDLE))
-    DIFF_TOTAL=$((TOTAL - PREV_TOTAL))
-    CPU_USAGE=$(awk '{u=$2+$4; t=$2+$4+$5; if (NR==1){u1=u; t1=t;} else print ($2+$4-u1) * 100 / (t-t1) ; }' \
-        < (grep 'cpu ' /proc/stat) <(sleep 1;grep 'cpu ' /proc/stat))
-
-    echo "CPU Usage: $CPU_USAGE%"
-
-    # Update previous values for next iteration
-    PREV_TOTAL=$TOTAL
-    PREV_IDLE=$idle
+    # CPU usage = (total difference - idle difference) * 100 / total difference
+    if [ $DIFF_TOTAL -gt 0 ]; then
+        CPU_USAGE=$(awk -v dtotal="$DIFF_TOTAL" -v didle="$DIFF_IDLE" 'BEGIN { printf "%.2f", ((dtotal - didle) * 100) / dtotal }')
+    else
+        CPU_USAGE="0.00"
+    fi
 
     # RAM Information
     RAM_AVAILABLE=$(awk '/MemAvailable/ {print $2}' $HOST/proc/meminfo)
