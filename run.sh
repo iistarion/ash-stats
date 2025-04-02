@@ -11,7 +11,7 @@
 
 VERSION=$(cat version.txt)
 
-docker run --rm --name ash-stats \
+docker run --rm --name ash-stats $1 \
     -v /sys/class/net/eth0/statistics:/host/eth0:ro \
     -v /proc:"/host/proc:ro,rslave" \
     -v /sys:"/host/sys:ro,rslave" \
