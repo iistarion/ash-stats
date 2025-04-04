@@ -148,6 +148,17 @@ collect_network_data() {
     TX_RATE=$(( (TX2 - TX) / 1024 ))
 }
 
+force_exit() {
+    echo "Kill signal received, exiting..."
+    exit 0
+}
+
+trap force_exit INT
+trap force_exit TERM
+trap force_exit KILL
+trap force_exit HUP
+trap force_exit QUIT
+
 while true; do
     sleep "$SLEEP_SEC"
 
