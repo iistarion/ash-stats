@@ -13,8 +13,6 @@ else
 fi
 MOUNT_DATA=""
 
-
-
 DEFAULT_SLEEP_SEC=1
 DEFAULT_OUTPUT_TYPE="pretty"
 NETWORK_PATH="/sys/class/net/eth0/statistics"
@@ -65,18 +63,6 @@ RAM_TOTAL=$(awk '/MemTotal/ {print $2}' $HOST/proc/meminfo)
 RAM_TOTAL_MB=$(echo "scale=1; $RAM_TOTAL / 1024" | bc)
 
 ASH_STATS_VERSION=$(cat version.txt)
-if [ "$OUTPUT_TYPE" = "json" ]; then
-    echo "{ \"info\": { \"version\": \"$ASH_STATS_VERSION\", \"host_mount\": \"$HOST\", \"cpu_model\": \"$CPU_MODEL\", \"cpu_cores\": \"$CPU_CORES\", \"cpu_frequency\": \"$CPU_FREQUENCY\", \"ram_total\": \"$RAM_TOTAL_MB\", \"system\": \"$UNAME\", \"update_sec\": $SLEEP_SEC_REAL, \"output\": \"$OUTPUT_TYPE\", \"uptime\": \"$UPTIME\" } }"
-else
-    echo "VERSION: $ASH_STATS_VERSION"
-    echo "CPU Model: $CPU_MODEL"
-    echo "CPU Cores: $CPU_CORES"
-    echo "CPU Frequency: $CPU_FREQUENCY"
-    echo "Online since: $UPTIME"
-    echo "System: $UNAME"
-    echo "Update every: $SLEEP_SEC_REAL seconds"
-    echo "Output type: $OUTPUT_TYPE"
-fi
 
 display_stats() {
     echo "=== SYSTEM MONITOR ==="
@@ -158,6 +144,22 @@ trap force_exit TERM
 trap force_exit KILL
 trap force_exit HUP
 trap force_exit QUIT
+
+# Sleep to allow other containers to start
+sleep 2
+
+if [ "$OUTPUT_TYPE" = "json" ]; then
+    echo "{ \"info\": { \"version\": \"$ASH_STATS_VERSION\", \"host_mount\": \"$HOST\", \"cpu_model\": \"$CPU_MODEL\", \"cpu_cores\": \"$CPU_CORES\", \"cpu_frequency\": \"$CPU_FREQUENCY\", \"ram_total\": \"$RAM_TOTAL_MB\", \"system\": \"$UNAME\", \"update_sec\": $SLEEP_SEC_REAL, \"output\": \"$OUTPUT_TYPE\", \"uptime\": \"$UPTIME\" } }"
+else
+    echo "VERSION: $ASH_STATS_VERSION"
+    echo "CPU Model: $CPU_MODEL"
+    echo "CPU Cores: $CPU_CORES"
+    echo "CPU Frequency: $CPU_FREQUENCY"
+    echo "Online since: $UPTIME"
+    echo "System: $UNAME"
+    echo "Update every: $SLEEP_SEC_REAL seconds"
+    echo "Output type: $OUTPUT_TYPE"
+fi
 
 while true; do
     sleep "$SLEEP_SEC"
