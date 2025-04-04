@@ -58,9 +58,15 @@ CPU_FREQUENCY=$(echo $CPU_FREQUENCY | awk -F': ' '{print $2}')
 UPTIME=$(uptime -s)
 UNAME=$(uname -a)
 
+NETWORK_PATH_RX="$NETWORK_PATH/rx_bytes"
+NETWORK_PATH_TX="$NETWORK_PATH/tx_bytes"
+
+RAM_TOTAL=$(awk '/MemTotal/ {print $2}' $HOST/proc/meminfo)
+RAM_TOTAL_MB=$(echo "scale=1; $RAM_TOTAL / 1024" | bc)
+
 ASH_STATS_VERSION=$(cat version.txt)
 if [ "$OUTPUT_TYPE" = "json" ]; then
-    echo "{ \"ash_stats_version\": \"$ASH_STATS_VERSION\", \"host_mount\": \"$HOST\", \"cpu_model\": \"$CPU_MODEL\", \"cpu_cores\": \"$CPU_CORES\", \"cpu_frequency\": \"$CPU_FREQUENCY\", \"system\": \"$UNAME\", \"update_sec\": $SLEEP_SEC_REAL, \"output\": \"$OUTPUT_TYPE\", \"uptime\": \"$UPTIME\" }"
+    echo "{ \"info\": { \"version\": \"$ASH_STATS_VERSION\", \"host_mount\": \"$HOST\", \"cpu_model\": \"$CPU_MODEL\", \"cpu_cores\": \"$CPU_CORES\", \"cpu_frequency\": \"$CPU_FREQUENCY\", \"ram_total\": \"$RAM_TOTAL_MB\", \"system\": \"$UNAME\", \"update_sec\": $SLEEP_SEC_REAL, \"output\": \"$OUTPUT_TYPE\", \"uptime\": \"$UPTIME\" } }"
 else
     echo "VERSION: $ASH_STATS_VERSION"
     echo "CPU Model: $CPU_MODEL"
@@ -116,12 +122,6 @@ display_stats_json() {
 
     echo "{ $CPU_JSON, $RAM_JSON, $DISK_JSON, $NETWORK_JSON }"
 }
-
-NETWORK_PATH_RX="$NETWORK_PATH/rx_bytes"
-NETWORK_PATH_TX="$NETWORK_PATH/tx_bytes"
-
-RAM_TOTAL=$(awk '/MemTotal/ {print $2}' $HOST/proc/meminfo)
-RAM_TOTAL_MB=$(echo "scale=1; $RAM_TOTAL / 1024" | bc)
 
 collect_mount_data() {
     local mount_data=""
