@@ -146,7 +146,7 @@ trap force_exit HUP
 trap force_exit QUIT
 
 # Sleep to allow other containers to start
-sleep 2
+sleep 5
 
 if [ "$OUTPUT_TYPE" = "json" ]; then
     echo "{ \"info\": { \"version\": \"$ASH_STATS_VERSION\", \"host_mount\": \"$HOST\", \"cpu_model\": \"$CPU_MODEL\", \"cpu_cores\": \"$CPU_CORES\", \"cpu_frequency\": \"$CPU_FREQUENCY\", \"ram_total\": \"$RAM_TOTAL_MB\", \"system\": \"$UNAME\", \"update_sec\": $SLEEP_SEC_REAL, \"output\": \"$OUTPUT_TYPE\", \"uptime\": \"$UPTIME\" } }"
