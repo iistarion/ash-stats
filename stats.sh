@@ -13,23 +13,6 @@ PATH="/usr/sbin:/usr/bin:/sbin:/bin"
 PRETTY=0; INTERVAL=1; COUNT=1; IFACES=""; DISKS=""
 NONET=0; NOIO=0; UNITS="bytes"
 
-quit(){ printf '%s\n' "$*" >&2; exit 2; }
-usage(){ cat <<'EOF'
-System Monitor Script
-Usage: stats.sh [options]
-  -p, --pretty              Pretty JSON
-  -i, --interval SEC        Sample interval (default 1)
-  -c, --count N             Samples to print (1; 0=forever)
-      --iface CSV           Only these interfaces (eth0,wlan0)
-      --disks CSV           Only these disks/mounts (/,/home or sda,sdb)
-      --no-net              Skip network metrics
-      --no-io               Skip disk I/O metrics
-      --units MODE          bytes|human (default bytes)
-  -v, --version             Show version and exit
-  -h, --help                Show this help and exit
-EOF
-}
-
 die(){ printf '%s\n' "ERR: $*" >&2; exit 1; }
 usage(){ cat <<'EOF'
 System Monitor Script
