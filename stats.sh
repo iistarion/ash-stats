@@ -135,8 +135,10 @@ display_stats_json() {
     DISK_JSON="\"disk\": {"
     
     for line in $(printf "$MOUNT_DATA"); do
-        path=$(escape_json "$device")
-        device=$(escape_json "$path")
+        pathstr=$(echo "$line" | awk -F'|' '{print $1}')
+        devicestr=$(echo "$line" | awk -F'|' '{print $2}')
+        path=$(escape_json "$pathstr")
+        device=$(escape_json "$devicestr")
         size=$(echo "$line" | awk -F'|' '{print $3}')
         used=$(echo "$line" | awk -F'|' '{print $4}')
         avail=$(echo "$line" | awk -F'|' '{print $5}')
@@ -155,13 +157,11 @@ display_stats_json() {
 }
 
 collect_mount_data() {
-    MOUNT_DATA=$(
-        LC_ALL=C df -P -k 2>/dev/null |
-        awk 'NR>1 && $1 !~ /^(tmpfs|devtmpfs|overlay|squashfs|proc|sysfs|cgroup|rpc_pipefs|debugfs|tracefs)$/ {
-            gsub("\\040"," ",$6);
-            printf "%s|%s|%d|%d|%d\n", $6, $1, int($2/1024), int($3/1024), int($4/1024);
-            }'
-    )
+  LC_ALL=C df -P -k 2>/dev/null |
+  awk 'NR>1 && $1 !~ /^(tmpfs|devtmpfs|overlay|squashfs|proc|sysfs|cgroup|rpc_pipefs|debugfs|tracefs)$/ {
+         gsub("\\040"," ",$6);
+         printf "%s|%s|%d|%d|%d\n", $6, $1, int($2/1024), int($3/1024), int($4/1024);
+       }'
 }
 
 SYS_NET_DIR="${SYS_NET_DIR:-${HOST:+$HOST/sys/class/net}}"
@@ -233,7 +233,7 @@ one_sample(){
     RAM_USED_MB=$(echo "scale=1; $RAM_USED / 1024" | bc)
 
     # Disk Information
-    MOUNT_DATA=$(collect_mount_data)
+    MOUNT_DATA="$(collect_mount_data)"
     
     if [ $OUTPUT -eq 0 ]; then
         display_stats_json
