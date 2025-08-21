@@ -1,4 +1,71 @@
-#!/bin/sh
+#!/usr/bin/env sh
+# stats.sh - A simple system monitoring script
+
+# Version: 1.0
+# -e: Exit immediately if a command exits with a non-zero status.
+# -u: Treat unset variables as an error and exit immediately.
+# IFS: Set the Internal Field Separator to newline and tab, which helps in handling spaces
+# in filenames and other inputs correctly.
+set -eu
+IFS="$(printf '\n\t')"
+PATH="/usr/sbin:/usr/bin:/sbin:/bin"
+
+PRETTY=0; INTERVAL=1; COUNT=1; IFACES=""; DISKS=""
+NONET=0; NOIO=0; UNITS="bytes"
+
+quit(){ printf '%s\n' "$*" >&2; exit 2; }
+usage(){ cat <<'EOF'
+System Monitor Script
+Usage: stats.sh [options]
+  -p, --pretty              Pretty JSON
+  -i, --interval SEC        Sample interval (default 1)
+  -c, --count N             Samples to print (1; 0=forever)
+      --iface CSV           Only these interfaces (eth0,wlan0)
+      --disks CSV           Only these disks/mounts (/,/home or sda,sdb)
+      --no-net              Skip network metrics
+      --no-io               Skip disk I/O metrics
+      --units MODE          bytes|human (default bytes)
+  -v, --version             Show version and exit
+  -h, --help                Show this help and exit
+EOF
+}
+
+need_num(){ case "$1" in (''|*[!0-9]*) quit "Invalid number: $1";; esac; }
+
+while [ "$#" -gt 0 ]; do
+    case "$1" in
+        -p|--pretty) PRETTY=1;;
+        -i|--interval)
+        shift; [ "$#" -gt 0 ] || quit "Missing SEC for --interval"
+        need_num "$1"; INTERVAL="$1";;
+        -c|--count)
+        shift; [ "$#" -gt 0 ] || quit "Missing N for --count"
+        need_num "$1"; COUNT="$1";;
+        --iface)
+        shift; [ "$#" -gt 0 ] || quit "Missing CSV for --iface"
+        IFACES="$1";;
+        --disks)
+        shift; [ "$#" -gt 0 ] || quit "Missing CSV for --disks"
+        DISKS="$1";;
+        --no-net) NONET=1;;
+        --no-io)  NOIO=1;;
+        --units)
+        shift; [ "$#" -gt 0 ] || quit "Missing MODE for --units"
+        case "$1" in (bytes|human) UNITS="$1";; (*) quit "Invalid units: $1";; esac;;
+        -v|--version)
+        [ -f version.txt ] && cat version.txt || printf 'unknown\n'
+        quit 0;;
+        -h|--help) usage; quit 0;;
+        --) shift; break;;
+        -*) quit "Unknown option: $1";;
+        *)  break;;
+    esac
+    shift
+done
+
+[ "$INTERVAL" -ge 1 ] || die "Interval must be >=1"
+export PRETTY INTERVAL COUNT IFACES DISKS NONET NOIO UNITS
+
 # Check if /host is mounted
 if [ ! -d "/host" ] ; then
     HOST=""
