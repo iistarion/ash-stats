@@ -30,34 +30,51 @@ Usage: stats.sh [options]
 EOF
 }
 
-need_num(){ case "$1" in (''|*[!0-9]*) quit "Invalid number: $1";; esac; }
+die(){ printf '%s\n' "ERR: $*" >&2; exit 1; }
+usage(){ cat <<'EOF'
+System Monitor Script
+Usage: stats.sh [options]
+  -p, --pretty              Pretty JSON
+  -i, --interval SEC        Sample interval (default 1)
+  -c, --count N             Samples to print (1; 0=forever)
+      --iface CSV           Only these interfaces (eth0,wlan0)
+      --disks CSV           Only these disks/mounts (/,/home or sda,sdb)
+      --no-net              Skip network metrics
+      --no-io               Skip disk I/O metrics
+      --units MODE          bytes|human (default bytes)
+  -v, --version             Show version and exit
+  -h, --help                Show this help and exit
+EOF
+}
+
+need_num(){ case "$1" in (''|*[!0-9]*) die "Invalid number: $1";; esac; }
 
 while [ "$#" -gt 0 ]; do
     case "$1" in
         -p|--pretty) PRETTY=1;;
         -i|--interval)
-        shift; [ "$#" -gt 0 ] || quit "Missing SEC for --interval"
+        shift; [ "$#" -gt 0 ] || die "Missing SEC for --interval"
         need_num "$1"; INTERVAL="$1";;
         -c|--count)
-        shift; [ "$#" -gt 0 ] || quit "Missing N for --count"
+        shift; [ "$#" -gt 0 ] || die "Missing N for --count"
         need_num "$1"; COUNT="$1";;
         --iface)
-        shift; [ "$#" -gt 0 ] || quit "Missing CSV for --iface"
+        shift; [ "$#" -gt 0 ] || die "Missing CSV for --iface"
         IFACES="$1";;
         --disks)
-        shift; [ "$#" -gt 0 ] || quit "Missing CSV for --disks"
+        shift; [ "$#" -gt 0 ] || die "Missing CSV for --disks"
         DISKS="$1";;
         --no-net) NONET=1;;
-        --no-io)  NOIO=1;;
+        --no-io) NOIO=1;;
         --units)
-        shift; [ "$#" -gt 0 ] || quit "Missing MODE for --units"
-        case "$1" in (bytes|human) UNITS="$1";; (*) quit "Invalid units: $1";; esac;;
+        shift; [ "$#" -gt 0 ] || die "Missing MODE for --units"
+        case "$1" in (bytes|human) UNITS="$1";; (*) die "Invalid units: $1";; esac;;
         -v|--version)
         [ -f version.txt ] && cat version.txt || printf 'unknown\n'
-        quit 0;;
-        -h|--help) usage; quit 0;;
+        exit 0;;
+        -h|--help) usage; exit 0;;
         --) shift; break;;
-        -*) quit "Unknown option: $1";;
+        -*) die "Unknown option: $1";;
         *)  break;;
     esac
     shift
