@@ -17,7 +17,6 @@ umask 077
 
 # Default values for options
 OUTPUT=0; INTERVAL=1; COUNT=1; IFACES=""; DISKS=""
-NONET=0; NOIO=0
 
 # Helper functions for logging and error handling
 warn(){ printf '%s\n' "WARN: $*" >&2; }
@@ -34,8 +33,6 @@ Usage: stats.sh [options]
   -c, --count N             Samples to print (1; 0=forever)
       --iface CSV           Only these interfaces (eth0,wlan0)
       --disks CSV           Only these disks/mounts (/,/home or sda,sdb)
-      --no-net              Skip network metrics
-      --no-io               Skip disk I/O metrics
       --units MODE          bytes|human (default bytes)
   -v, --version             Show version and exit
   -h, --help                Show this help and exit
@@ -64,8 +61,6 @@ while [ "$#" -gt 0 ]; do
         --disks)
         shift; [ "$#" -gt 0 ] || die "Missing CSV for --disks"
         DISKS="$1";;
-        --no-net) NONET=1;;
-        --no-io) NOIO=1;;
         -v|--version)
         [ -f version.txt ] && cat version.txt || printf 'unknown\n'
         exit 0;;
@@ -79,7 +74,7 @@ done
 
 # Validate options
 [ "$INTERVAL" -ge 1 ] || die "Interval must be >=1"
-export OUTPUT INTERVAL COUNT IFACES DISKS NONET NOIO
+export OUTPUT INTERVAL COUNT IFACES DISKS
 
 # Cleanup actions before exiting
 cleanup(){
@@ -88,10 +83,14 @@ cleanup(){
 
 # Trap signals to ensure cleanup is called on exit
 on_err() {
-    echo "Error on line $1"
+    if [ -n "${1:-}" ]; then
+        echo "Error on line $1"
+    else
+        echo "An error occurred"
+    fi
     exit 1
 }
-trap 'on_err $LINENO' INT TERM HUP QUIT
+trap 'on_err ${LINENO:-}' INT TERM HUP QUIT
 trap 'cleanup' EXIT
 
 # Required tools, check if stat is readable
@@ -99,8 +98,13 @@ PROC_ROOT="${PROC_ROOT:-/proc}"
 SYS_ROOT="${SYS_ROOT:-/sys}"
 [ -r "$PROC_ROOT/stat" ] || warn "Missing $PROC_ROOT/stat (running in container without mounts?)"
 
+SYS_NET_DIR="${SYS_NET_DIR:-${HOST:+$HOST/sys/class/net}}"
+[ -n "$SYS_NET_DIR" ] || SYS_NET_DIR="/sys/class/net"
+
+RX_RATE=0; TX_RATE=0; NET_ROWS=""
+
 # Check if we can use "df" command
-USE_DF=0; have df && USE_DF=1
+have df || die "Missing df command"
 
 # Returns the current date and time in UTC format.
 now_iso(){ date -u "+%Y-%m-%dT%H:%M:%SZ"; }
@@ -120,8 +124,13 @@ display_stats() {
 
         echo "Disk $device ($path): Used $used of $size (Available: $avail)"
     done
-
-    echo "Network: Download: $RX_RATE KB/s | Upload: $TX_RATE KB/s"
+# text mode (after totals line)
+    [ -n "$NET_ROWS" ] && while IFS='|' read -r n rx tx; do
+        [ -n "$n" ] || continue
+        printf 'Network %s: %s KB/s down, %s KB/s up\n' "$n" "$rx" "$tx"
+    done <<EOF
+    $NET_ROWS
+EOF
 }
 
 # Escapes JSON special characters in a string
@@ -132,77 +141,125 @@ display_stats_json() {
     CPU_JSON="\"cpu\": {\"usage\": $CPU_USAGE}"
     RAM_JSON="\"ram\": {\"used\": $RAM_USED_MB, \"total\": $RAM_TOTAL_MB}"
     index=0
-    DISK_JSON="\"disk\": {"
+    DISK_JSON="\"disk\": ["
     
-    for line in $(printf "$MOUNT_DATA"); do
-        pathstr=$(echo "$line" | awk -F'|' '{print $1}')
-        devicestr=$(echo "$line" | awk -F'|' '{print $2}')
-        path=$(escape_json "$pathstr")
-        device=$(escape_json "$devicestr")
-        size=$(echo "$line" | awk -F'|' '{print $3}')
-        used=$(echo "$line" | awk -F'|' '{print $4}')
-        avail=$(echo "$line" | awk -F'|' '{print $5}')
-
-        if [ $index -gt 0 ]; then
-            DISK_JSON="${DISK_JSON},"
-        fi
-        DISK_JSON="${DISK_JSON}\"disk_${index}_used\": $used, \"disk_${index}_total\": $size, \"disk_${index}_device\": \"$device\", \"disk_${index}_path\": \"$path\""
-        index=$((index + 1))
-    done
-    DISK_JSON="${DISK_JSON}}"
+first=1
+while IFS='|' read -r path device size used avail; do
+    [ -n "$path" ] || continue
+    path=$(escape_json "$path")
+    device=$(escape_json "$device")
+    [ $first -eq 0 ] && DISK_JSON="${DISK_JSON},"
+    DISK_JSON="${DISK_JSON}{\"device\": \"$device\", \"used\": $used, \"total\": $size, \"path\": \"$path\"}"
+    first=0
+done <<EOF
+${MOUNT_DATA-}
+EOF
+    DISK_JSON="${DISK_JSON}]"
     
-    NETWORK_JSON="\"network\": {\"download\": $RX_RATE, \"upload\": $TX_RATE}"
+NETWORK_JSON=""
+if [ -n "$NET_ROWS" ]; then
+    NETWORK_JSON="$NETWORK_JSON\"network\":["
+    first=1
+    while IFS='|' read -r n rx tx; do
+        [ -n "$n" ] || continue
+        [ $first -eq 1 ] || NETWORK_JSON="$NETWORK_JSON,"
+        NETWORK_JSON="$NETWORK_JSON{\"name\":\"$n\",\"download\":$rx,\"upload\":$tx}"
+        first=0
+    done <<EOF
+$NET_ROWS
+EOF
+    NETWORK_JSON="$NETWORK_JSON]"
+fi
+NETWORK_JSON="$NETWORK_JSON"
 
     echo "{ $CPU_JSON, $RAM_JSON, $DISK_JSON, $NETWORK_JSON }"
 }
 
 collect_mount_data() {
   LC_ALL=C df -P -k 2>/dev/null |
-  awk 'NR>1 && $1 !~ /^(tmpfs|devtmpfs|overlay|squashfs|proc|sysfs|cgroup|rpc_pipefs|debugfs|tracefs)$/ {
-         gsub("\\040"," ",$6);
-         printf "%s|%s|%d|%d|%d\n", $6, $1, int($2/1024), int($3/1024), int($4/1024);
-       }'
+  awk -v disks="${DISKS:-}" '
+    BEGIN{
+      n=split(disks, want, ","); for(i=1;i<=n;i++) if (length(want[i])) inc[want[i]]=1
+    }
+    NR>1 {
+      fs=$1; size=$2; used=$3; avail=$4; mnt=$6
+      gsub("\\\\040"," ", mnt)   # unescape spaces
+      if (fs ~ /^(tmpfs|devtmpfs|overlay|squashfs|proc|sysfs|cgroup|rpc_pipefs|debugfs|tracefs|none|rootfs)$/) next
+      if (n>0) {
+        keep=0; for(k in inc) if (mnt==k || fs==k) { keep=1; break }
+        if (!keep) next
+      }
+      printf "%s|%s|%d|%d|%d\n", mnt, fs, int(size/1024), int(used/1024), int(avail/1024)
+    }'
 }
 
-SYS_NET_DIR="${SYS_NET_DIR:-${HOST:+$HOST/sys/class/net}}"
-[ -n "$SYS_NET_DIR" ] || SYS_NET_DIR="/sys/class/net"
-
-_select_ifaces() {
-    if [ -n "${IFACES:-}" ]; then
-        printf '%s' "$IFACES" | tr ',' ' '
-        return
-    fi
-    # Auto: skip loopback and common virtuals
-    for d in "$SYS_NET_DIR"/*; do
-        [ -e "$d" ] || continue
-        i=${d##*/}
-        case "$i" in lo|veth*|docker*|br-*|virbr*|vmnet*|zt*|tailscale*|wg*|ham*) continue;; esac
-        printf '%s ' "$i"
-    done
+# ---- auto ifaces if none were passed ----
+_auto_ifaces() {
+  for d in "$SYS_NET_DIR"/*; do
+    [ -e "$d" ] || continue
+    i=${d##*/}
+    case "$i" in lo|veth*|docker*|br-*|virbr*|vmnet*|zt*|tailscale*|wg*|ham*) continue;; esac
+    printf '%s ' "$i"
+  done
 }
 
-# Sum rx/tx bytes over selected ifaces
-_sum_net_bytes() {
-    rx=0; tx=0
-    for i in $(_select_ifaces); do
-        rb="$SYS_NET_DIR/$i/statistics/rx_bytes"
-        tb="$SYS_NET_DIR/$i/statistics/tx_bytes"
-        [ -r "$rb" ] && r=$(cat "$rb" 2>/dev/null || printf 0) || r=0
-        [ -r "$tb" ] && t=$(cat "$tb" 2>/dev/null || printf 0) || t=0
-        rx=$((rx + r)); tx=$((tx + t))
-    done
-    printf '%s %s\n' "$rx" "$tx"
+# ---- build explicit list from CSV (trim + ignore missing) ----
+_ifaces_from_csv() {
+  set -f
+  oldIFS=$IFS; IFS=,
+  for x in $IFACES; do
+    IFS=$oldIFS
+    i=$(printf '%s' "$x" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
+    [ -n "$i" ] && [ -d "$SYS_NET_DIR/$i" ] && printf '%s ' "$i"
+  done
+  set +f
 }
 
-# Collects network data and calculates RX/TX rates
+# ---- collect per-iface + totals with a single 1s delta ----
 collect_network_data() {
-    set -- $(_sum_net_bytes) 0 0; rx1=$1; tx1=$2
-    sleep 1
-    set -- $(_sum_net_bytes) 0 0; rx2=$1; tx2=$2
-    dr=$((rx2 - rx1)); dt=$((tx2 - tx1))
-    [ "$dr" -ge 0 ] || dr=0; [ "$dt" -ge 0 ] || dt=0
-    RX_RATE=$((dr / 1024))
-    TX_RATE=$((dt / 1024))
+  # pick list (explicit if provided, else auto)
+  if [ -n "${IFACES:-}" ]; then
+    IFACE_LIST=$(_ifaces_from_csv)
+  else
+    IFACE_LIST=$(_auto_ifaces)
+  fi
+  # none -> zeros
+  [ -n "${IFACE_LIST:-}" ] || { RX_RATE=0; TX_RATE=0; NET_ROWS=""; return; }
+
+  # snapshot A
+  SNAP=""
+  for i in $IFACE_LIST; do
+    rb="$SYS_NET_DIR/$i/statistics/rx_bytes"
+    tb="$SYS_NET_DIR/$i/statistics/tx_bytes"
+    r=0; t=0
+    [ -r "$rb" ] && r=$(cat "$rb" 2>/dev/null || printf 0)
+    [ -r "$tb" ] && t=$(cat "$tb" 2>/dev/null || printf 0)
+    SNAP="${SNAP}${i}|${r}|${t}
+"
+  done
+
+  sleep 1
+
+  # snapshot B + compute
+  RX_RATE=0; TX_RATE=0; NET_ROWS=""
+  while IFS='|' read -r name r1 t1; do
+    [ -n "$name" ] || continue
+    rb="$SYS_NET_DIR/$name/statistics/rx_bytes"
+    tb="$SYS_NET_DIR/$name/statistics/tx_bytes"
+    r2=0; t2=0
+    [ -r "$rb" ] && r2=$(cat "$rb" 2>/dev/null || printf 0)
+    [ -r "$tb" ] && t2=$(cat "$tb" 2>/dev/null || printf 0)
+    dr=$((r2 - r1)); dt=$((t2 - t1))
+    [ "$dr" -ge 0 ] || dr=0
+    [ "$dt" -ge 0 ] || dt=0
+    rk=$((dr / 1024)); tk=$((dt / 1024))
+    NET_ROWS="${NET_ROWS}${name}|${rk}|${tk}
+"
+    RX_RATE=$((RX_RATE + rk))
+    TX_RATE=$((TX_RATE + tk))
+  done <<EOF
+$SNAP
+EOF
 }
 
 # Collects one sample of system data and prints it in the specified format
